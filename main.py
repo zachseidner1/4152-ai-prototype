@@ -1,7 +1,8 @@
 import heapq
 import math
-import pygame
 import sys
+
+import pygame
 
 # Initialize Pygame
 pygame.init()
@@ -125,6 +126,7 @@ class Patrol:
                 self.direction *= -1
                 next_index = self.index + self.direction
                 if next_index < 0 or next_index >= len(self.path):
+                    print("ERROR")
                     self.progress = 0.0
                     self.pos = cell_center(self.path[self.index])
                     return
@@ -229,10 +231,19 @@ while running:
                 col = mouse_x // CELL_SIZE
                 row = mouse_y // CELL_SIZE
                 cell = (col, row)
-                if cell not in current_patrol_path:
+                in_patrol_path = False
+                for patrol in patrols:
+                    if math.hypot(mouse_x - patrol.pos[0], mouse_y - patrol.pos[1]) < PATROL_RADIUS * 1.5:
+                        patrol.direction *= -1
+                        # TODO a bit scuffed but it should work?
+                        patrol.index -= patrol.direction
+                        patrol.progress = 1 - patrol.progress
+                        in_patrol_path = True
+                        print("clicked")
+                if cell not in current_patrol_path and not in_patrol_path:
                     current_patrol_path.append(cell)
 
-    # --- Update Game Objects ---
+                    # --- Update Game Objects ---
     for patrol in patrols:
         patrol.update(dt)
     for enemy in enemies:
