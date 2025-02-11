@@ -1,4 +1,7 @@
-import pygame, sys, math, heapq
+import heapq
+import math
+import pygame
+import sys
 
 # Initialize Pygame
 pygame.init()
@@ -6,8 +9,10 @@ pygame.init()
 # --------- Configuration Constants -----------
 WIDTH, HEIGHT = 800, 600  # window size in pixels
 CELL_SIZE = 40  # size of one grid cell (in pixels)
-GRID_COLS = WIDTH // CELL_SIZE  # number of columns in the grid
-GRID_ROWS = HEIGHT // CELL_SIZE  # number of rows in the grid
+GRID_COLS = 14  # number of columns in the grid
+GRID_ROWS = 11  # number of rows in the grid
+ENEMY_RADIUS = CELL_SIZE // 2
+PATROL_RADIUS = CELL_SIZE // 2
 
 # Colors
 WHITE = (255, 255, 255)
@@ -98,8 +103,7 @@ class Patrol:
         next_index = self.index + self.direction
         # Reverse direction if at either end:
         if next_index < 0 or next_index >= len(self.path):
-            self.direction *= -1
-            next_index = self.index + self.direction
+            next_index = self.index - self.direction
             if next_index < 0 or next_index >= len(self.path):
                 return
         start_pos = cell_center(self.path[self.index])
@@ -138,7 +142,7 @@ class Patrol:
             points = [cell_center(cell) for cell in self.path]
             pygame.draw.lines(surface, GREEN, False, points, 3)
         # Draw the patrol itself as a red circle
-        pygame.draw.circle(surface, RED, (int(self.pos[0]), int(self.pos[1])), CELL_SIZE // 4)
+        pygame.draw.circle(surface, RED, (int(self.pos[0]), int(self.pos[1])), PATROL_RADIUS)
 
 
 # --------- Enemy Class -----------
@@ -185,7 +189,7 @@ class Enemy:
                     start_pos[1] + dy * self.progress)
 
     def draw(self, surface):
-        pygame.draw.circle(surface, BLUE, (int(self.pos[0]), int(self.pos[1])), CELL_SIZE // 4)
+        pygame.draw.circle(surface, BLUE, (int(self.pos[0]), int(self.pos[1])), ENEMY_RADIUS)
 
 
 # --------- Main Game Loop -----------
@@ -237,12 +241,10 @@ while running:
     # --- Check for Collisions between Patrols and Enemies ---
     # If any patrol (red circle) collides with an enemy (blue circle), remove that enemy.
     for patrol in patrols:
-        patrol_radius = CELL_SIZE // 4
         for enemy in enemies[:]:
-            enemy_radius = CELL_SIZE // 4
             dx = patrol.pos[0] - enemy.pos[0]
             dy = patrol.pos[1] - enemy.pos[1]
-            if math.hypot(dx, dy) < patrol_radius + enemy_radius:
+            if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
                 enemies.remove(enemy)
 
     # --- Draw Everything ---
