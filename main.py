@@ -8,10 +8,10 @@ import pygame
 pygame.init()
 
 # --------- Configuration Constants -----------
-WIDTH, HEIGHT = 800, 600  # window size in pixels
 CELL_SIZE = 40  # size of one grid cell (in pixels)
 GRID_COLS = 14  # number of columns in the grid
 GRID_ROWS = 11  # number of rows in the grid
+WIDTH, HEIGHT = CELL_SIZE * GRID_COLS, CELL_SIZE * GRID_ROWS  # window size in pixels
 ENEMY_RADIUS = CELL_SIZE // 2
 PATROL_RADIUS = CELL_SIZE // 2
 
@@ -40,7 +40,7 @@ enemies = []  # list to hold enemy objects
 # --------- Helper: Convert grid cell to pixel center -----------
 def cell_center(cell):
     col, row = cell
-    return (col * CELL_SIZE + CELL_SIZE // 2, row * CELL_SIZE + CELL_SIZE // 2)
+    return col * CELL_SIZE + CELL_SIZE // 2, row * CELL_SIZE + CELL_SIZE // 2
 
 
 # --------- A* Pathfinding Function -----------
