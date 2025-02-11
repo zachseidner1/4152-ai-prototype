@@ -24,10 +24,11 @@ BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 LIGHT_BLUE = (173, 216, 230)
 LIGHT_GREEN = (200, 255, 200)
+BROWN = (139, 69, 19)  # Color for barricades
 
 # --------- Set Up Display -----------
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Multiple Patrol Paths and Enemies")
+pygame.display.set_caption("Multiple Patrol Paths, Enemies, and Barricades")
 clock = pygame.time.Clock()
 
 # --------- Global Game State -----------
@@ -35,6 +36,7 @@ current_patrol_path = []  # the cells (as (col, row)) being defined right now
 patrols = []  # list of finalized Patrol objects
 target_cell = None  # the cell marked as enemy target (blue)
 enemies = []  # list to hold enemy objects
+barricades = set()  # set of grid cells that have barricades
 
 
 # --------- Helper: Convert grid cell to pixel center -----------
@@ -74,8 +76,12 @@ def a_star(start, goal):
         close_set.add(current)
         for dx, dy in neighbors:
             neighbor = (current[0] + dx, current[1] + dy)
+            # Check bounds
             if not (0 <= neighbor[0] < GRID_COLS and 0 <= neighbor[1] < GRID_ROWS):
                 continue  # out of bounds
+            # Skip if neighbor is blocked by a barricade.
+            if neighbor in barricades:
+                continue
             tentative_g = gscore[current] + 1
             if neighbor in close_set and tentative_g >= gscore.get(neighbor, 0):
                 continue
@@ -223,6 +229,14 @@ while running:
                 if current_patrol_path:
                     patrols.append(Patrol(current_patrol_path))
                     current_patrol_path = []  # reset for a new patrol path
+            elif event.key == pygame.K_b:
+                # Place a barricade at the cell under the mouse cursor.
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                col = mouse_x // CELL_SIZE
+                row = mouse_y // CELL_SIZE
+                cell = (col, row)
+                if cell not in barricades:
+                    barricades.add(cell)
 
         # --- Mouse Events ---
         elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -243,7 +257,7 @@ while running:
                 if cell not in current_patrol_path and not in_patrol_path:
                     current_patrol_path.append(cell)
 
-                    # --- Update Game Objects ---
+    # --- Update Game Objects ---
     for patrol in patrols:
         patrol.update(dt)
     for enemy in enemies:
@@ -266,6 +280,11 @@ while running:
         pygame.draw.line(screen, GRAY, (x, 0), (x, HEIGHT))
     for y in range(0, HEIGHT, CELL_SIZE):
         pygame.draw.line(screen, GRAY, (0, y), (WIDTH, y))
+
+    # Draw barricades as brown cells
+    for cell in barricades:
+        rect = pygame.Rect(cell[0] * CELL_SIZE, cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        pygame.draw.rect(screen, BROWN, rect)
 
     # Highlight the target cell (if set) with a light-blue rectangle.
     if target_cell is not None:
