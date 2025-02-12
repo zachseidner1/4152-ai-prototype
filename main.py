@@ -368,13 +368,6 @@ while running:
                 elif event.key == pygame.K_m:
                     # Enter tetromino selection mode instead of marking a target.
                     game_mode = "tetromino_select"
-                elif event.key == pygame.K_e:
-                    # Spawn an enemy at the cell under the mouse.
-                    mouse_x, mouse_y = pygame.mouse.get_pos()
-                    col = mouse_x // CELL_SIZE
-                    row = mouse_y // CELL_SIZE
-                    enemy = Enemy((col, row))
-                    enemies.append(enemy)
                 elif event.key == pygame.K_n:
                     if current_patrol_path:
                         # When finalizing a manually‐created patrol, fill in intermediate cells
