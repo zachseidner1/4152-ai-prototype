@@ -27,7 +27,7 @@ DEFAULT_PATROL_SPEED = 40
 vent_spawn_interval = 5.0  # seconds between spawns from vents
 
 # JSON Level File
-LOAD_PATH = "level.json"  # <-- New: fixed file path for level data
+LOAD_PATH = "level2.json"  # <-- New: fixed file path for level data
 EXPORT_PATH = "level_export.json"
 
 # Colors
@@ -258,7 +258,7 @@ class Enemy:
         if target_cell is None:
             self.path = [start_cell]
         else:
-            if waypoints and random.random() < 0.5:
+            if waypoints and random.random() < 0.75:
                 chosen_wp = random.choice(waypoints)
                 path_to_wp = a_star(start_cell, chosen_wp)
                 path_from_wp = a_star(chosen_wp, target_cell)
@@ -430,7 +430,8 @@ while running:
                     level_data = {
                         "barricades": [[col, row] for (col, row) in barricades],
                         "vents": [[col, row] for (col, row) in vents],
-                        "target": [target_cell[0], target_cell[1]] if target_cell is not None else None
+                        "target": [target_cell[0], target_cell[1]] if target_cell is not None else None,
+                        "waypoints": [[col, row] for (col, row) in waypoints]
                     }
                     try:
                         with open(EXPORT_PATH, 'w') as f:
@@ -445,6 +446,7 @@ while running:
                             level_data = json.load(f)
                         barricades = {tuple(cell) for cell in level_data.get("barricades", [])}
                         vents = {tuple(cell) for cell in level_data.get("vents", [])}
+                        waypoints = [tuple(cell) for cell in level_data.get("waypoints", [])]
                         target_cell = tuple(level_data["target"]) if level_data.get("target") is not None else None
                         print("Loaded level from", LOAD_PATH)
                     except Exception as e:
