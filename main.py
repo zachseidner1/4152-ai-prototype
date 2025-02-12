@@ -21,6 +21,7 @@ WIDTH, HEIGHT = CELL_SIZE * GRID_COLS, CELL_SIZE * GRID_ROWS  # window size in p
 ENEMY_RADIUS = CELL_SIZE // 2
 DEFAULT_ENEMY_SPEED = 30
 STARTING_VENT_SPAWN_INTERVAL = 8.0
+COIN_DROP_CHANCE = 1.0
 
 # Patrol attributes
 PATROL_RADIUS = CELL_SIZE // 2
@@ -616,7 +617,8 @@ while running:
             dy = patrol.pos[1] - enemy.pos[1]
             if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
                 patrol.sleep_timer = PATROL_SLEEP_TIME  # Patrol stops moving for a few seconds.
-                coins.append(Coin(enemy.pos))  # <-- Drop a coin at the enemy's location.
+                if random.random() < COIN_DROP_CHANCE:
+                    coins.append(Coin(enemy.pos))  # <-- Drop a coin at the enemy's location.
                 enemies.remove(enemy)
                 patrol.lifespan -= 1
                 if patrol.lifespan <= 0:
