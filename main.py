@@ -24,19 +24,41 @@ BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 LIGHT_BLUE = (173, 216, 230)
 LIGHT_GREEN = (200, 255, 200)
-BROWN = (139, 69, 19)  # Color for barricades
+BROWN = (139, 69, 19)  # for barricades
 
 # --------- Set Up Display -----------
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Multiple Patrol Paths, Enemies, and Barricades")
+pygame.display.set_caption("Multiple Patrol Paths, Enemies, Barricades, and Tetromino Patrols")
 clock = pygame.time.Clock()
+font = pygame.font.SysFont(None, 36)
 
 # --------- Global Game State -----------
-current_patrol_path = []  # the cells (as (col, row)) being defined right now
-patrols = []  # list of finalized Patrol objects
-target_cell = None  # the cell marked as enemy target (blue)
-enemies = []  # list to hold enemy objects
-barricades = set()  # set of grid cells that have barricades
+current_patrol_path = []  # manually created patrol cells (if any)
+patrols = []  # finalized Patrol objects
+enemies = []  # enemy objects
+barricades = set()  # grid cells (as (col, row)) that are barricaded
+
+# --- New: Tetromino Purchasing State ---
+# The game runs in one of three modes:
+#   "main"            – the usual game screen,
+#   "tetromino_select"– a screen that shows one tetromino plus two buttons,
+#   "tetromino_place" – the main screen with the purchased tetromino following the mouse.
+game_mode = "main"  # initial mode
+
+# A list of tetromino “templates.” Each has a name, a list of cell coordinates (relative to an origin)
+# and a color for drawing.
+tetrominoes = [
+    {"name": "I", "cells": [(0, 0), (1, 0), (2, 0), (3, 0)], "color": (0, 255, 255)},
+    {"name": "O", "cells": [(0, 0), (1, 0), (0, 1), (1, 1)], "color": (255, 255, 0)},
+    {"name": "T", "cells": [(1, 0), (0, 1), (1, 1), (2, 1)], "color": (128, 0, 128)},
+    {"name": "S", "cells": [(1, 0), (2, 0), (0, 1), (1, 1)], "color": (0, 255, 0)},
+    {"name": "Z", "cells": [(0, 0), (1, 0), (1, 1), (2, 1)], "color": (255, 0, 0)},
+    {"name": "J", "cells": [(0, 0), (0, 1), (1, 1), (2, 1)], "color": (0, 0, 255)},
+    {"name": "L", "cells": [(2, 0), (0, 1), (1, 1), (2, 1)], "color": (255, 165, 0)}
+]
+current_tetromino_index = 0  # which tetromino is currently shown
+purchased_tetromino = None  # once “purchased” this holds the tetromino to be placed
+target_cell = None
 
 
 # --------- Helper: Convert grid cell to pixel center -----------
@@ -47,9 +69,6 @@ def cell_center(cell):
 
 # --------- A* Pathfinding Function -----------
 def a_star(start, goal):
-    """Computes a path from start to goal on an open grid using A*.
-       Returns a list of cells (each a (col, row) tuple)."""
-
     def heuristic(a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
@@ -60,11 +79,9 @@ def a_star(start, goal):
     fscore = {start: heuristic(start, goal)}
     oheap = []
     heapq.heappush(oheap, (fscore[start], start))
-
     while oheap:
         current = heapq.heappop(oheap)[1]
         if current == goal:
-            # Reconstruct path:
             data = []
             while current in came_from:
                 data.append(current)
@@ -72,16 +89,13 @@ def a_star(start, goal):
             data.append(start)
             data.reverse()
             return data
-
         close_set.add(current)
         for dx, dy in neighbors:
             neighbor = (current[0] + dx, current[1] + dy)
-            # Check bounds
             if not (0 <= neighbor[0] < GRID_COLS and 0 <= neighbor[1] < GRID_ROWS):
                 continue  # out of bounds
-            # Skip if neighbor is blocked by a barricade.
             if neighbor in barricades:
-                continue
+                continue  # cannot pass through barricades!
             tentative_g = gscore[current] + 1
             if neighbor in close_set and tentative_g >= gscore.get(neighbor, 0):
                 continue
@@ -90,25 +104,23 @@ def a_star(start, goal):
                 gscore[neighbor] = tentative_g
                 fscore[neighbor] = tentative_g + heuristic(neighbor, goal)
                 heapq.heappush(oheap, (fscore[neighbor], neighbor))
-    return None  # no path found
+    return None
 
 
 # --------- Patrol Class -----------
 class Patrol:
     def __init__(self, path, speed=100):
-        # 'path' is a list of grid cells (col, row)
-        self.path = path[:]  # make a copy of the path
+        self.path = path[:]  # list of grid cells (col, row)
         self.speed = speed  # pixels per second
-        self.index = 0  # current index in the path
-        self.progress = 0.0  # progress (0-1) along the current segment
-        self.direction = 1  # 1 = forward along the list, -1 = backward
+        self.index = 0  # current index in the path list
+        self.progress = 0.0  # progress along the segment (0–1)
+        self.direction = 1  # 1 = forward, -1 = backward
         self.pos = cell_center(self.path[0])
 
     def update(self, dt):
         if len(self.path) < 2:
-            return  # nothing to patrol if only one cell
+            return
         next_index = self.index + self.direction
-        # Reverse direction if at either end:
         if next_index < 0 or next_index >= len(self.path):
             next_index = self.index - self.direction
             if next_index < 0 or next_index >= len(self.path):
@@ -122,7 +134,6 @@ class Patrol:
             self.index = next_index
             self.progress = 0.0
             return
-        # Increase progress along the segment:
         self.progress += self.speed * dt / segment_length
         if self.progress >= 1.0:
             self.index = next_index
@@ -132,7 +143,6 @@ class Patrol:
                 self.direction *= -1
                 next_index = self.index + self.direction
                 if next_index < 0 or next_index >= len(self.path):
-                    print("ERROR")
                     self.progress = 0.0
                     self.pos = cell_center(self.path[self.index])
                     return
@@ -140,39 +150,35 @@ class Patrol:
             end_pos = cell_center(self.path[next_index])
             dx = end_pos[0] - start_pos[0]
             dy = end_pos[1] - start_pos[1]
-        # Update position by linear interpolation:
         self.pos = (start_pos[0] + dx * self.progress,
                     start_pos[1] + dy * self.progress)
 
     def draw(self, surface):
-        # Optionally draw the patrol's complete path (as a green line)
         if len(self.path) > 1:
             points = [cell_center(cell) for cell in self.path]
             pygame.draw.lines(surface, GREEN, False, points, 3)
-        # Draw the patrol itself as a red circle
         pygame.draw.circle(surface, RED, (int(self.pos[0]), int(self.pos[1])), PATROL_RADIUS)
 
 
 # --------- Enemy Class -----------
 class Enemy:
-    def __init__(self, start_cell, target_cell, speed=80):
+    def __init__(self, start_cell, speed=80):
         self.start_cell = start_cell
         self.target_cell = target_cell
         self.speed = speed
-        # Compute a route (list of grid cells) using A*
         self.path = a_star(start_cell, target_cell)
         if self.path is None or len(self.path) == 0:
             self.path = [start_cell]
-        self.index = 0  # current index in the path
-        self.progress = 0.0  # progress along the current segment
+        self.index = 0
+        self.progress = 0.0
         self.pos = cell_center(self.path[0])
 
     def update(self, dt):
         if len(self.path) < 2:
-            return  # no path or already at destination
+            return
         next_index = self.index + 1
         if next_index >= len(self.path):
-            return  # reached destination; remain here.
+            return
         start_pos = cell_center(self.path[self.index])
         end_pos = cell_center(self.path[next_index])
         dx = end_pos[0] - start_pos[0]
@@ -200,6 +206,34 @@ class Enemy:
         pygame.draw.circle(surface, BLUE, (int(self.pos[0]), int(self.pos[1])), ENEMY_RADIUS)
 
 
+# --------- Drawing Helper Functions -----------
+def draw_grid(surface):
+    for x in range(0, WIDTH, CELL_SIZE):
+        pygame.draw.line(surface, GRAY, (x, 0), (x, HEIGHT))
+    for y in range(0, HEIGHT, CELL_SIZE):
+        pygame.draw.line(surface, GRAY, (0, y), (WIDTH, y))
+
+
+def draw_barricades(surface):
+    for cell in barricades:
+        rect = pygame.Rect(cell[0] * CELL_SIZE, cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        pygame.draw.rect(surface, BROWN, rect)
+
+
+def draw_tetromino(tetromino, top_left, cell_size, surface):
+    # Draw each cell of the tetromino relative to the given top_left position.
+    for (dx, dy) in tetromino["cells"]:
+        rect = pygame.Rect(top_left[0] + dx * cell_size,
+                           top_left[1] + dy * cell_size,
+                           cell_size, cell_size)
+        pygame.draw.rect(surface, tetromino["color"], rect)
+        pygame.draw.rect(surface, BLACK, rect, 2)
+
+
+# --- Define on-screen button rectangles for tetromino selection ---
+checkmark_rect = pygame.Rect(WIDTH // 4 - 40, HEIGHT - 100, 80, 50)
+x_button_rect = pygame.Rect(3 * WIDTH // 4 - 40, HEIGHT - 100, 80, 50)
+
 # --------- Main Game Loop -----------
 running = True
 while running:
@@ -208,105 +242,158 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-        # --- Keyboard Events ---
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_m:
-                # Mark the target cell (blue) under the mouse cursor.
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                col = mouse_x // CELL_SIZE
-                row = mouse_y // CELL_SIZE
-                target_cell = (col, row)
-            elif event.key == pygame.K_e:
-                # Spawn an enemy at the cell under the mouse cursor (if a target has been marked).
-                if target_cell is not None:
+        # === Mode-dependent event handling ===
+        if game_mode == "main":
+            # --- Main Game Events ---
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_t:
+                    print("HELP")
+                    # Mark the target cell (blue) under the mouse cursor.
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     col = mouse_x // CELL_SIZE
                     row = mouse_y // CELL_SIZE
-                    enemy = Enemy((col, row), target_cell)
+                    target_cell = (col, row)
+                elif event.key == pygame.K_m:
+                    # Enter tetromino selection mode instead of marking a target.
+                    game_mode = "tetromino_select"
+                elif event.key == pygame.K_e:
+                    # Spawn an enemy at the cell under the mouse.
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    col = mouse_x // CELL_SIZE
+                    row = mouse_y // CELL_SIZE
+                    # For this example we set a fixed target (e.g. bottom-right corner).
+                    enemy = Enemy((col, row))
                     enemies.append(enemy)
-            elif event.key == pygame.K_n:
-                # Finalize the current patrol path (if it has any cells) and begin a new one.
-                if current_patrol_path:
-                    patrols.append(Patrol(current_patrol_path))
-                    current_patrol_path = []  # reset for a new patrol path
-            elif event.key == pygame.K_b:
-                # Place a barricade at the cell under the mouse cursor.
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                col = mouse_x // CELL_SIZE
-                row = mouse_y // CELL_SIZE
-                cell = (col, row)
-                if cell not in barricades:
-                    barricades.add(cell)
+                elif event.key == pygame.K_n:
+                    if current_patrol_path:
+                        patrols.append(Patrol(current_patrol_path))
+                        current_patrol_path = []
+                elif event.key == pygame.K_b:
+                    # Place a barricade at the cell under the mouse.
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    col = mouse_x // CELL_SIZE
+                    row = mouse_y // CELL_SIZE
+                    cell = (col, row)
+                    if cell not in barricades:
+                        barricades.add(cell)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    mouse_x, mouse_y = event.pos
+                    col = mouse_x // CELL_SIZE
+                    row = mouse_y // CELL_SIZE
+                    cell = (col, row)
+                    in_patrol_path = False
+                    # (If a patrol is clicked, reverse its direction.)
+                    for patrol in patrols:
+                        if math.hypot(mouse_x - patrol.pos[0], mouse_y - patrol.pos[1]) < PATROL_RADIUS * 1.5:
+                            patrol.direction *= -1
+                            patrol.index -= patrol.direction
+                            patrol.progress = 1 - patrol.progress
+                            in_patrol_path = True
+                    if cell not in current_patrol_path and not in_patrol_path:
+                        current_patrol_path.append(cell)
 
-        # --- Mouse Events ---
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:  # left-click: add cell to the current patrol path
+        elif game_mode == "tetromino_select":
+            # --- Tetromino Selection Screen ---
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_x, mouse_y = event.pos
-                col = mouse_x // CELL_SIZE
-                row = mouse_y // CELL_SIZE
-                cell = (col, row)
-                in_patrol_path = False
-                for patrol in patrols:
-                    if math.hypot(mouse_x - patrol.pos[0], mouse_y - patrol.pos[1]) < PATROL_RADIUS * 1.5:
-                        patrol.direction *= -1
-                        # TODO a bit scuffed but it should work?
-                        patrol.index -= patrol.direction
-                        patrol.progress = 1 - patrol.progress
-                        in_patrol_path = True
-                        print("clicked")
-                if cell not in current_patrol_path and not in_patrol_path:
-                    current_patrol_path.append(cell)
+                if checkmark_rect.collidepoint(mouse_x, mouse_y):
+                    # Purchase the tetromino: move to placement mode.
+                    purchased_tetromino = tetrominoes[current_tetromino_index]
+                    game_mode = "tetromino_place"
+                elif x_button_rect.collidepoint(mouse_x, mouse_y):
+                    # Cycle to the next tetromino.
+                    current_tetromino_index = (current_tetromino_index + 1) % len(tetrominoes)
+        elif game_mode == "tetromino_place":
+            # --- Tetromino Placement Mode ---
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_x, mouse_y = event.pos
+                origin_col = mouse_x // CELL_SIZE
+                origin_row = mouse_y // CELL_SIZE
+                tetromino_cells = []
+                valid = True
+                for (dx, dy) in purchased_tetromino["cells"]:
+                    cell = (origin_col + dx, origin_row + dy)
+                    if not (0 <= cell[0] < GRID_COLS and 0 <= cell[1] < GRID_ROWS):
+                        valid = False
+                        break
+                    tetromino_cells.append(cell)
+                if valid:
+                    # Place the purchased tetromino as a new Patrol.
+                    patrols.append(Patrol(tetromino_cells))
+                    purchased_tetromino = None
+                    game_mode = "main"
 
-    # --- Update Game Objects ---
-    for patrol in patrols:
-        patrol.update(dt)
-    for enemy in enemies:
-        enemy.update(dt)
+    # --- Update Game Objects (only in main mode) ---
+    if game_mode == "main":
+        for patrol in patrols:
+            patrol.update(dt)
+        for enemy in enemies:
+            enemy.update(dt)
+        # Check for collisions between patrols and enemies.
+        for patrol in patrols:
+            for enemy in enemies[:]:
+                dx = patrol.pos[0] - enemy.pos[0]
+                dy = patrol.pos[1] - enemy.pos[1]
+                if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
+                    enemies.remove(enemy)
 
-    # --- Check for Collisions between Patrols and Enemies ---
-    # If any patrol (red circle) collides with an enemy (blue circle), remove that enemy.
-    for patrol in patrols:
-        for enemy in enemies[:]:
-            dx = patrol.pos[0] - enemy.pos[0]
-            dy = patrol.pos[1] - enemy.pos[1]
-            if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
-                enemies.remove(enemy)
+    # --- Drawing ---
+    if game_mode in ("main", "tetromino_place"):
+        # Draw the main game screen.
+        screen.fill(WHITE)
+        draw_grid(screen)
+        draw_barricades(screen)
+        if target_cell:
+            target_rect = pygame.Rect(target_cell[0] * CELL_SIZE, target_cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+            pygame.draw.rect(screen, LIGHT_BLUE, target_rect)
 
-    # --- Draw Everything ---
-    screen.fill(WHITE)
-
-    # Draw grid lines
-    for x in range(0, WIDTH, CELL_SIZE):
-        pygame.draw.line(screen, GRAY, (x, 0), (x, HEIGHT))
-    for y in range(0, HEIGHT, CELL_SIZE):
-        pygame.draw.line(screen, GRAY, (0, y), (WIDTH, y))
-
-    # Draw barricades as brown cells
-    for cell in barricades:
-        rect = pygame.Rect(cell[0] * CELL_SIZE, cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-        pygame.draw.rect(screen, BROWN, rect)
-
-    # Highlight the target cell (if set) with a light-blue rectangle.
-    if target_cell is not None:
-        target_rect = pygame.Rect(target_cell[0] * CELL_SIZE, target_cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-        pygame.draw.rect(screen, LIGHT_BLUE, target_rect)
-
-    # Draw the cells that are part of the current (unfinalized) patrol path
-    for cell in current_patrol_path:
-        rect = pygame.Rect(cell[0] * CELL_SIZE, cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-        pygame.draw.rect(screen, LIGHT_GREEN, rect)
-    # Optionally, draw lines connecting the current patrol cells if there are at least 2.
-    if len(current_patrol_path) > 1:
-        points = [cell_center(cell) for cell in current_patrol_path]
-        pygame.draw.lines(screen, LIGHT_GREEN, False, points, 3)
-
-    # Draw all finalized patrols
-    for patrol in patrols:
-        patrol.draw(screen)
-
-    # Draw all enemies
-    for enemy in enemies:
-        enemy.draw(screen)
+        # Draw any manually-created (unfinalized) patrol path cells.
+        for cell in current_patrol_path:
+            rect = pygame.Rect(cell[0] * CELL_SIZE, cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+            pygame.draw.rect(screen, LIGHT_GREEN, rect)
+        if len(current_patrol_path) > 1:
+            points = [cell_center(cell) for cell in current_patrol_path]
+            pygame.draw.lines(screen, LIGHT_GREEN, False, points, 3)
+        for patrol in patrols:
+            patrol.draw(screen)
+        for enemy in enemies:
+            enemy.draw(screen)
+        # If in tetromino placement mode, show the purchased tetromino following the mouse,
+        # snapped to the grid.
+        if game_mode == "tetromino_place" and purchased_tetromino is not None:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            origin_col = mouse_x // CELL_SIZE
+            origin_row = mouse_y // CELL_SIZE
+            top_left = (origin_col * CELL_SIZE, origin_row * CELL_SIZE)
+            draw_tetromino(purchased_tetromino, top_left, CELL_SIZE, screen)
+    elif game_mode == "tetromino_select":
+        # Draw the tetromino selection screen.
+        screen.fill(WHITE)
+        # Draw the current tetromino preview in the center (with a larger cell size).
+        preview_cell_size = 50
+        tetromino = tetrominoes[current_tetromino_index]
+        # Compute a bounding box for the tetromino.
+        xs = [cell[0] for cell in tetromino["cells"]]
+        ys = [cell[1] for cell in tetromino["cells"]]
+        width_cells = max(xs) - min(xs) + 1
+        height_cells = max(ys) - min(ys) + 1
+        preview_width = width_cells * preview_cell_size
+        preview_height = height_cells * preview_cell_size
+        # Offset so the tetromino is centered.
+        preview_top_left = ((WIDTH - preview_width) // 2 - min(xs) * preview_cell_size,
+                            (HEIGHT - preview_height) // 2 - min(ys) * preview_cell_size)
+        draw_tetromino(tetromino, preview_top_left, preview_cell_size, screen)
+        # Draw the checkmark (OK) button.
+        pygame.draw.rect(screen, GREEN, checkmark_rect)
+        check_text = font.render("OK", True, BLACK)
+        text_rect = check_text.get_rect(center=checkmark_rect.center)
+        screen.blit(check_text, text_rect)
+        # Draw the X (cycle) button.
+        pygame.draw.rect(screen, RED, x_button_rect)
+        x_text = font.render("X", True, BLACK)
+        text_rect = x_text.get_rect(center=x_button_rect.center)
+        screen.blit(x_text, text_rect)
 
     pygame.display.flip()
 
