@@ -22,6 +22,8 @@ DEFAULT_ENEMY_SPEED = 40
 PATROL_RADIUS = CELL_SIZE // 2
 PATROL_SLEEP_TIME = 5.0
 DEFAULT_PATROL_SPEED = 50
+# Vents
+STARTING_VENT_SPAWN_INTERVAL = 3.0  # seconds between spawns from vents
 
 # Colors
 WHITE = (255, 255, 255)
@@ -51,7 +53,6 @@ vents = set()  # grid cells that have vents
 # --- New: Variables for vent enemy spawning ---
 spawn_from_vents = False  # when True, enemies spawn periodically from vents
 vent_spawn_timer = 0.0  # timer for vent enemy spawn interval
-vent_spawn_interval = 3.0  # seconds between spawns from vents
 
 # --- New: Tetromino Purchasing State ---
 # The game runs in one of three modes:
@@ -472,7 +473,7 @@ while running:
     # --- Update Game Objects (in all modes) ---
     if spawn_from_vents and vents:
         vent_spawn_timer += dt
-        if vent_spawn_timer >= vent_spawn_interval:
+        if vent_spawn_timer >= STARTING_VENT_SPAWN_INTERVAL:
             for vent in vents:
                 enemy = Enemy(vent)
                 enemies.append(enemy)
