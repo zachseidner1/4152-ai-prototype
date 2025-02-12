@@ -22,4 +22,3 @@ While hovering over grid cells:
       small yellow circles on the map and they can be used to vary the enemy paths.
 - Press `V` to place a vent
     - Enemy spawn point
-- 
