@@ -1,5 +1,6 @@
 import heapq
 import math
+import random
 import sys
 from collections import deque
 
@@ -438,7 +439,9 @@ while running:
                     game_mode = "tetromino_place"
                 elif x_button_rect.collidepoint(mouse_x, mouse_y):
                     # Cycle to the next tetromino.
-                    current_tetromino_index = (current_tetromino_index + 1) % len(tetrominoes)
+                    prev_tetromino_index = current_tetromino_index
+                    while prev_tetromino_index == current_tetromino_index:
+                        current_tetromino_index = random.randint(0, len(tetrominoes) - 1)
         elif game_mode == "tetromino_place":
             # --- Tetromino Placement Mode ---
             # Allow rotation via the R key.
