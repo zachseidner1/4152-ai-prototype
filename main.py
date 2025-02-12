@@ -1,3 +1,4 @@
+import copy  # <-- New: for deep-copying tetromino templates
 import heapq
 import json  # <-- New: JSON support
 import math
@@ -23,8 +24,13 @@ DEFAULT_ENEMY_SPEED = 20
 PATROL_RADIUS = CELL_SIZE // 2
 PATROL_SLEEP_TIME = 5.0
 DEFAULT_PATROL_SPEED = 40
-# Vents
-vent_spawn_interval = 5.0  # seconds between spawns from vents
+STARTING_VENT_SPAWN_INTERVAL = 5.0
+
+# Currency system
+STARTING_PLAYER_CURRENCY = 5
+T_PRICE = 2
+L_PRICE = 1
+LINE_PRICE = 2
 
 # JSON Level File
 LOAD_PATH = "level2.json"  # <-- New: fixed file path for level data
@@ -62,6 +68,12 @@ time_since_spawn_decreased = 0
 spawn_from_vents = False  # when True, enemies spawn periodically from vents
 vent_spawn_timer = 0.0  # timer for vent enemy spawn interval
 
+# --- New: Currency System ---
+player_balance = STARTING_PLAYER_CURRENCY  # starting balance
+
+# Vents
+vent_spawn_interval = STARTING_VENT_SPAWN_INTERVAL  # seconds between spawns from vents
+
 # --- New: Tetromino Purchasing State ---
 # The game runs in one of three modes:
 #   "main"            – the usual game screen,
@@ -69,16 +81,16 @@ vent_spawn_timer = 0.0  # timer for vent enemy spawn interval
 #   "tetromino_place" – the main screen with the purchased tetromino following the mouse.
 game_mode = "main"  # initial mode
 
-# A list of tetromino “templates.” Each has a name, a list of cell coordinates (relative to an origin)
-# and a color for drawing.
+# A list of tetromino “templates.” Each has a name, a list of cell coordinates (relative to an origin),
+# a color for drawing, and a price.
 tetrominoes = [
-    {"name": "I", "cells": [(0, 0), (1, 0), (2, 0), (3, 0)], "color": (0, 255, 255)},
-    {"name": "O", "cells": [(0, 0), (1, 0), (0, 1), (1, 1)], "color": (255, 255, 0)},
-    {"name": "T", "cells": [(1, 0), (0, 1), (1, 1), (2, 1)], "color": (128, 0, 128)},
-    {"name": "S", "cells": [(1, 0), (2, 0), (0, 1), (1, 1)], "color": (0, 255, 0)},
-    {"name": "Z", "cells": [(0, 0), (1, 0), (1, 1), (2, 1)], "color": (255, 0, 0)},
-    {"name": "J", "cells": [(0, 0), (0, 1), (1, 1), (2, 1)], "color": (0, 0, 255)},
-    {"name": "L", "cells": [(2, 0), (0, 1), (1, 1), (2, 1)], "color": (255, 165, 0)}
+    {"name": "I", "cells": [(0, 0), (1, 0), (2, 0), (3, 0)], "color": (0, 255, 255), "price": LINE_PRICE},
+    {"name": "O", "cells": [(0, 0), (1, 0), (0, 1), (1, 1)], "color": (255, 255, 0), "price": 1},
+    {"name": "T", "cells": [(1, 0), (0, 1), (1, 1), (2, 1)], "color": (128, 0, 128), "price": T_PRICE},
+    {"name": "S", "cells": [(1, 0), (2, 0), (0, 1), (1, 1)], "color": (0, 255, 0), "price": 1},
+    {"name": "Z", "cells": [(0, 0), (1, 0), (1, 1), (2, 1)], "color": (255, 0, 0), "price": 1},
+    {"name": "J", "cells": [(0, 0), (0, 1), (1, 1), (2, 1)], "color": (0, 0, 255), "price": 1},
+    {"name": "L", "cells": [(2, 0), (0, 1), (1, 1), (2, 1)], "color": (255, 165, 0), "price": L_PRICE}
 ]
 current_tetromino_index = 0  # which tetromino is currently shown
 purchased_tetromino = None  # once “purchased” this holds the tetromino to be placed
@@ -254,7 +266,7 @@ class Enemy:
         global target_cell, waypoints
         self.start_cell = start_cell
         self.speed = speed
-        # If a target is defined, sometimes (50% chance) choose a waypoint first.
+        # If a target is defined, sometimes (75% chance) choose a waypoint first.
         if target_cell is None:
             self.path = [start_cell]
         else:
@@ -492,9 +504,14 @@ while running:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 if checkmark_rect.collidepoint(mouse_x, mouse_y):
-                    # Purchase the tetromino: move to placement mode.
-                    purchased_tetromino = tetrominoes[current_tetromino_index]
-                    game_mode = "tetromino_place"
+                    # Purchase the tetromino if the player has enough funds.
+                    selected = tetrominoes[current_tetromino_index]
+                    if player_balance >= selected["price"]:
+                        player_balance -= selected["price"]
+                        purchased_tetromino = copy.deepcopy(selected)
+                        game_mode = "tetromino_place"
+                    else:
+                        print("Insufficient funds!")
                 elif x_button_rect.collidepoint(mouse_x, mouse_y):
                     # Cycle to the next tetromino.
                     prev_tetromino_index = current_tetromino_index
@@ -558,7 +575,7 @@ while running:
             dx = patrol.pos[0] - enemy.pos[0]
             dy = patrol.pos[1] - enemy.pos[1]
             if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
-                patrol.sleep_timer = PATROL_SLEEP_TIME  # Patrol stops moving for 3 seconds.
+                patrol.sleep_timer = PATROL_SLEEP_TIME  # Patrol stops moving for a few seconds.
                 enemies.remove(enemy)
                 break
 
@@ -579,6 +596,10 @@ while running:
         if target_cell:
             target_rect = pygame.Rect(target_cell[0] * CELL_SIZE, target_cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
             pygame.draw.rect(screen, LIGHT_BLUE, target_rect)
+
+        # Display the player's current balance.
+        balance_text = font.render(f"Balance: ${player_balance}", True, BLACK)
+        screen.blit(balance_text, (10, 10))
 
         # Draw any manually-created (unfinalized) patrol path cells.
         for cell in current_patrol_path:
@@ -613,6 +634,10 @@ while running:
         preview_top_left = ((WIDTH - preview_width) // 2 - min(xs) * preview_cell_size,
                             (HEIGHT - preview_height) // 2 - min(ys) * preview_cell_size)
         draw_tetromino(tetromino, preview_top_left, preview_cell_size, screen)
+        # Display the price of the tetromino.
+        price_text = font.render(f"Price: ${tetromino['price']}", True, BLACK)
+        price_rect = price_text.get_rect(center=(WIDTH // 2, (HEIGHT // 2) + preview_height // 2 + 20))
+        screen.blit(price_text, price_rect)
         pygame.draw.rect(screen, GREEN, checkmark_rect)
         check_text = font.render("OK", True, BLACK)
         text_rect = check_text.get_rect(center=checkmark_rect.center)
