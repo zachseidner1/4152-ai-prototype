@@ -26,4 +26,10 @@ While hovering over grid cells:
 - Press `E` to export your level, which will save location of barricades, waypoints, target and vents to a JSON file,
   the file name is by default `level_export.json` but this can be modified by changing the `EXPORT_PATH` variable.
 - Press `L` to load your level, which will by default load a level stored in `level.json`, but can be modified by
-  changing the `LOAD_PATH` variable. 
+  changing the `LOAD_PATH` variable.
+
+### Parameters to tune
+
+The parameters to tune are listed at the top of `main.py`, you should have no problem changing those values to whatever
+you want. Their names should explain themselves. Keep in mind you can change the grid size as well if you want to make
+layouts for different grid sizes.
