@@ -26,6 +26,7 @@ GREEN = (0, 255, 0)
 LIGHT_BLUE = (173, 216, 230)
 LIGHT_GREEN = (200, 255, 200)
 BROWN = (139, 69, 19)  # for barricades
+VENT_COLOR = (255, 165, 0)  # orange for vents
 
 # --------- Set Up Display -----------
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -38,6 +39,12 @@ current_patrol_path = []  # manually created patrol cells (if any)
 patrols = []  # finalized Patrol objects
 enemies = []  # enemy objects
 barricades = set()  # grid cells (as (col, row)) that are barricaded
+vents = set()  # grid cells that have vents
+
+# --- New: Variables for vent enemy spawning ---
+spawn_from_vents = False  # when True, enemies spawn periodically from vents
+vent_spawn_timer = 0.0  # timer for vent enemy spawn interval
+vent_spawn_interval = 3.0  # seconds between spawns from vents
 
 # --- New: Tetromino Purchasing State ---
 # The game runs in one of three modes:
@@ -269,6 +276,14 @@ def draw_barricades(surface):
         pygame.draw.rect(surface, BROWN, rect)
 
 
+# --- NEW: Draw vents on the grid ---
+def draw_vents(surface):
+    for cell in vents:
+        rect = pygame.Rect(cell[0] * CELL_SIZE, cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        pygame.draw.rect(surface, VENT_COLOR, rect)
+        pygame.draw.rect(surface, BLACK, rect, 2)
+
+
 def draw_tetromino(tetromino, top_left, cell_size, surface):
     # Draw each cell of the tetromino relative to the given top_left position.
     for (dx, dy) in tetromino["cells"]:
@@ -344,6 +359,17 @@ while running:
                     cell = (col, row)
                     if cell not in barricades:
                         barricades.add(cell)
+                elif event.key == pygame.K_v:
+                    # --- NEW: Add a vent at the mouse cursor ---
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    col = mouse_x // CELL_SIZE
+                    row = mouse_y // CELL_SIZE
+                    cell = (col, row)
+                    if cell not in vents:
+                        vents.add(cell)
+                elif event.key == pygame.K_RETURN:
+                    # --- NEW: Pressing Enter starts periodic enemy spawns from vents ---
+                    spawn_from_vents = True
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     mouse_x, mouse_y = event.pos
@@ -420,6 +446,15 @@ while running:
 
     # --- Update Game Objects (only in main mode) ---
     if game_mode == "main":
+        # --- NEW: If vent enemy spawning is active, update timer and spawn enemies ---
+        if spawn_from_vents and vents:
+            vent_spawn_timer += dt
+            if vent_spawn_timer >= vent_spawn_interval:
+                for vent in vents:
+                    enemy = Enemy(vent)
+                    enemies.append(enemy)
+                vent_spawn_timer = 0.0
+
         for patrol in patrols:
             patrol.update(dt)
         for enemy in enemies:
@@ -438,6 +473,7 @@ while running:
         screen.fill(WHITE)
         draw_grid(screen)
         draw_barricades(screen)
+        draw_vents(screen)  # --- NEW: Draw vents on the grid
         if target_cell:
             target_rect = pygame.Rect(target_cell[0] * CELL_SIZE, target_cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
             pygame.draw.rect(screen, LIGHT_BLUE, target_rect)
