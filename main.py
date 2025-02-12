@@ -1,4 +1,5 @@
 import heapq
+import json  # <-- New: JSON support
 import math
 import random
 import sys
@@ -25,6 +26,9 @@ DEFAULT_PATROL_SPEED = 40
 # Vents
 vent_spawn_interval = 5.0  # seconds between spawns from vents
 
+# JSON Level File
+LEVEL_FILE = "level.json"  # <-- New: fixed file path for level data
+
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -50,7 +54,7 @@ patrols = []  # finalized Patrol objects
 enemies = []  # enemy objects
 barricades = set()  # grid cells (as (col, row)) that are barricaded
 vents = set()  # grid cells that have vents
-waypoints = []  # NEW: grid cells (as (col, row)) that have been marked as waypoints
+waypoints = []  # grid cells (as (col, row)) that have been marked as waypoints
 time_since_spawn_decreased = 0
 
 # --- New: Variables for vent enemy spawning ---
@@ -420,6 +424,30 @@ while running:
                 elif event.key == pygame.K_RETURN:
                     # --- NEW: Pressing Enter starts periodic enemy spawns from vents ---
                     spawn_from_vents = True
+                elif event.key == pygame.K_e:
+                    # --- NEW: Export level data to JSON ---
+                    level_data = {
+                        "barricades": [[col, row] for (col, row) in barricades],
+                        "vents": [[col, row] for (col, row) in vents],
+                        "target": [target_cell[0], target_cell[1]] if target_cell is not None else None
+                    }
+                    try:
+                        with open(LEVEL_FILE, 'w') as f:
+                            json.dump(level_data, f, indent=4)
+                        print("Exported level to", LEVEL_FILE)
+                    except Exception as e:
+                        print("Error exporting level:", e)
+                elif event.key == pygame.K_l:
+                    # --- NEW: Load level data from JSON ---
+                    try:
+                        with open(LEVEL_FILE, 'r') as f:
+                            level_data = json.load(f)
+                        barricades = {tuple(cell) for cell in level_data.get("barricades", [])}
+                        vents = {tuple(cell) for cell in level_data.get("vents", [])}
+                        target_cell = tuple(level_data["target"]) if level_data.get("target") is not None else None
+                        print("Loaded level from", LEVEL_FILE)
+                    except Exception as e:
+                        print("Failed to load level:", e)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     mouse_x, mouse_y = event.pos
