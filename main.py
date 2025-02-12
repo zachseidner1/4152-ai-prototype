@@ -17,13 +17,13 @@ GRID_ROWS = 11  # number of rows in the grid
 WIDTH, HEIGHT = CELL_SIZE * GRID_COLS, CELL_SIZE * GRID_ROWS  # window size in pixels
 # Enemy attributes
 ENEMY_RADIUS = CELL_SIZE // 2
-DEFAULT_ENEMY_SPEED = 40
+DEFAULT_ENEMY_SPEED = 20
 # Patrol attributes
 PATROL_RADIUS = CELL_SIZE // 2
 PATROL_SLEEP_TIME = 5.0
-DEFAULT_PATROL_SPEED = 50
+DEFAULT_PATROL_SPEED = 40
 # Vents
-STARTING_VENT_SPAWN_INTERVAL = 3.0  # seconds between spawns from vents
+vent_spawn_interval = 5.0  # seconds between spawns from vents
 
 # Colors
 WHITE = (255, 255, 255)
@@ -49,6 +49,7 @@ patrols = []  # finalized Patrol objects
 enemies = []  # enemy objects
 barricades = set()  # grid cells (as (col, row)) that are barricaded
 vents = set()  # grid cells that have vents
+time_since_spawn_decreased = 0
 
 # --- New: Variables for vent enemy spawning ---
 spawn_from_vents = False  # when True, enemies spawn periodically from vents
@@ -473,7 +474,7 @@ while running:
     # --- Update Game Objects (in all modes) ---
     if spawn_from_vents and vents:
         vent_spawn_timer += dt
-        if vent_spawn_timer >= STARTING_VENT_SPAWN_INTERVAL:
+        if vent_spawn_timer >= vent_spawn_interval:
             for vent in vents:
                 enemy = Enemy(vent)
                 enemies.append(enemy)
@@ -497,6 +498,12 @@ while running:
                 patrol.sleep_timer = PATROL_SLEEP_TIME  # Patrol stops moving for 3 seconds.
                 enemies.remove(enemy)
                 break
+
+    # Update spawning rate
+    time_since_spawn_decreased += dt
+    if time_since_spawn_decreased > 10:
+        time_since_spawn_decreased = 0
+        vent_spawn_interval *= 0.9
 
     # --- Drawing ---
     if game_mode in ("main", "tetromino_place"):
