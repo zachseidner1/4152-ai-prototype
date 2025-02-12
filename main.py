@@ -9,12 +9,18 @@ import pygame
 pygame.init()
 
 # --------- Configuration Constants -----------
+# Grid stuff
 CELL_SIZE = 40  # size of one grid cell (in pixels)
 GRID_COLS = 14  # number of columns in the grid
 GRID_ROWS = 11  # number of rows in the grid
 WIDTH, HEIGHT = CELL_SIZE * GRID_COLS, CELL_SIZE * GRID_ROWS  # window size in pixels
+# Enemy attributes
 ENEMY_RADIUS = CELL_SIZE // 2
+DEFAULT_ENEMY_SPEED = 40
+# Patrol attributes
 PATROL_RADIUS = CELL_SIZE // 2
+PATROL_SLEEP_TIME = 5.0
+DEFAULT_PATROL_SPEED = 50
 
 # Colors
 WHITE = (255, 255, 255)
@@ -163,7 +169,7 @@ def rotate_tetromino_cells(cells):
 
 # --------- Patrol Class -----------
 class Patrol:
-    def __init__(self, path, speed=100):
+    def __init__(self, path, speed=DEFAULT_PATROL_SPEED):
         # The path is assumed to be an ordered list of grid cells in which consecutive cells
         # are connected by a horizontal or vertical move.
         self.path = path[:]
@@ -172,8 +178,16 @@ class Patrol:
         self.progress = 0.0  # progress along the segment (0–1)
         self.direction = 1  # 1 = forward, -1 = backward
         self.pos = cell_center(self.path[0])
+        self.sleep_timer = 0.0  # When > 0, the patrol is "asleep" and stops moving.
 
     def update(self, dt):
+        # If asleep, decrement the sleep timer and do not update movement.
+        if self.sleep_timer > 0:
+            self.sleep_timer -= dt
+            if self.sleep_timer < 0:
+                self.sleep_timer = 0
+            return
+
         if len(self.path) < 2:
             return
         next_index = self.index + self.direction
@@ -210,15 +224,23 @@ class Patrol:
                     start_pos[1] + dy * self.progress)
 
     def draw(self, surface):
+        # Draw the entire path in green.
         if len(self.path) > 1:
             points = [cell_center(cell) for cell in self.path]
             pygame.draw.lines(surface, GREEN, False, points, 3)
-        pygame.draw.circle(surface, RED, (int(self.pos[0]), int(self.pos[1])), PATROL_RADIUS)
+        # Draw the patrol as a red circle. If asleep, draw it semi-transparent.
+        if self.sleep_timer > 0:
+            # Create a temporary surface with per-pixel alpha.
+            temp_surf = pygame.Surface((PATROL_RADIUS * 2, PATROL_RADIUS * 2), pygame.SRCALPHA)
+            pygame.draw.circle(temp_surf, (255, 0, 0, 128), (PATROL_RADIUS, PATROL_RADIUS), PATROL_RADIUS)
+            surface.blit(temp_surf, (int(self.pos[0] - PATROL_RADIUS), int(self.pos[1] - PATROL_RADIUS)))
+        else:
+            pygame.draw.circle(surface, RED, (int(self.pos[0]), int(self.pos[1])), PATROL_RADIUS)
 
 
 # --------- Enemy Class -----------
 class Enemy:
-    def __init__(self, start_cell, speed=80):
+    def __init__(self, start_cell, speed=DEFAULT_ENEMY_SPEED):
         self.start_cell = start_cell
         self.target_cell = target_cell
         self.speed = speed
@@ -409,7 +431,7 @@ while running:
         elif game_mode == "tetromino_select":
             # --- Tetromino Selection Screen ---
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_x, mouse_y = event.pos
+                mouse_x, mouse_y = pygame.mouse.get_pos()
                 if checkmark_rect.collidepoint(mouse_x, mouse_y):
                     # Purchase the tetromino: move to placement mode.
                     purchased_tetromino = tetrominoes[current_tetromino_index]
@@ -444,28 +466,33 @@ while running:
                     purchased_tetromino = None
                     game_mode = "main"
 
-    # --- Update Game Objects (only in main mode) ---
-    if game_mode == "main":
-        # --- NEW: If vent enemy spawning is active, update timer and spawn enemies ---
-        if spawn_from_vents and vents:
-            vent_spawn_timer += dt
-            if vent_spawn_timer >= vent_spawn_interval:
-                for vent in vents:
-                    enemy = Enemy(vent)
-                    enemies.append(enemy)
-                vent_spawn_timer = 0.0
+    # --- Update Game Objects (in all modes) ---
+    if spawn_from_vents and vents:
+        vent_spawn_timer += dt
+        if vent_spawn_timer >= vent_spawn_interval:
+            for vent in vents:
+                enemy = Enemy(vent)
+                enemies.append(enemy)
+            vent_spawn_timer = 0.0
 
-        for patrol in patrols:
-            patrol.update(dt)
-        for enemy in enemies:
-            enemy.update(dt)
-        # Check for collisions between patrols and enemies.
-        for patrol in patrols:
-            for enemy in enemies[:]:
-                dx = patrol.pos[0] - enemy.pos[0]
-                dy = patrol.pos[1] - enemy.pos[1]
-                if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
-                    enemies.remove(enemy)
+    # Update patrols and enemies.
+    for patrol in patrols:
+        patrol.update(dt)
+    for enemy in enemies:
+        enemy.update(dt)
+
+    # --- NEW: Check for collisions between patrols and enemies.
+    # Only register a collision if the patrol is not already asleep.
+    for patrol in patrols:
+        if patrol.sleep_timer > 0:
+            continue
+        for enemy in enemies[:]:
+            dx = patrol.pos[0] - enemy.pos[0]
+            dy = patrol.pos[1] - enemy.pos[1]
+            if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
+                patrol.sleep_timer = PATROL_SLEEP_TIME  # Patrol stops moving for 3 seconds.
+                enemies.remove(enemy)
+                break
 
     # --- Drawing ---
     if game_mode in ("main", "tetromino_place"):
@@ -473,7 +500,7 @@ while running:
         screen.fill(WHITE)
         draw_grid(screen)
         draw_barricades(screen)
-        draw_vents(screen)  # --- NEW: Draw vents on the grid
+        draw_vents(screen)  # --- Draw vents on the grid
         if target_cell:
             target_rect = pygame.Rect(target_cell[0] * CELL_SIZE, target_cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
             pygame.draw.rect(screen, LIGHT_BLUE, target_rect)
