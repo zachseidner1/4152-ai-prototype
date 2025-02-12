@@ -140,6 +140,20 @@ def compute_patrol_path(cells):
     return list(cells)
 
 
+# --------- NEW: Helper function to rotate tetromino cells by 90° clockwise ---------
+def rotate_tetromino_cells(cells):
+    """
+    Rotate the list of (x,y) tuples 90° clockwise about the origin,
+    then normalize so that the smallest x and y are 0.
+    """
+    # Rotation: (x, y) -> (y, -x)
+    rotated = [(y, -x) for (x, y) in cells]
+    min_x = min(x for (x, y) in rotated)
+    min_y = min(y for (x, y) in rotated)
+    normalized = [(x - min_x, y - min_y) for (x, y) in rotated]
+    return normalized
+
+
 # --------- Patrol Class -----------
 class Patrol:
     def __init__(self, path, speed=100):
@@ -379,8 +393,13 @@ while running:
                     current_tetromino_index = (current_tetromino_index + 1) % len(tetrominoes)
         elif game_mode == "tetromino_place":
             # --- Tetromino Placement Mode ---
+            # Allow rotation via the R key.
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r and purchased_tetromino is not None:
+                    purchased_tetromino["cells"] = rotate_tetromino_cells(purchased_tetromino["cells"])
+            # Place the tetromino with the mouse.
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_x, mouse_y = event.pos
+                mouse_x, mouse_y = pygame.mouse.get_pos()
                 origin_col = mouse_x // CELL_SIZE
                 origin_row = mouse_y // CELL_SIZE
                 tetromino_cells = []
