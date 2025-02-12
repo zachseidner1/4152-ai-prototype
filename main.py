@@ -496,6 +496,7 @@ while running:
                     enemies = []
                     coins = []
                     current_patrol_path = []
+                    player_balance = STARTING_PLAYER_CURRENCY
                 elif event.key == pygame.K_k:
                     current_patrol_path = []
 
@@ -703,6 +704,9 @@ while running:
         x_text = font.render("X", True, BLACK)
         text_rect = x_text.get_rect(center=x_button_rect.center)
         screen.blit(x_text, text_rect)
+        # Draw player's current balance
+        balance_text = font.render(f"Balance: ${player_balance}", True, BLACK)
+        screen.blit(balance_text, (10, 10))
 
     pygame.display.flip()
 
