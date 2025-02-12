@@ -9,7 +9,8 @@ map. While placing Tetrominos, you can press `R` to rotate them 90 degrees. Once
 to start the level. Throughout the level you can continue placing
 Tetrominos and defend. The enemies will spawn exponentially faster throughout the level.
 
-By clicking on the grid, you can also draw patrol paths.
+By clicking on the grid, you can also draw patrol paths. Once you have a path selected you want to place, press `N` to
+finalize it.
 
 ### Level creation
 
@@ -22,5 +23,7 @@ While hovering over grid cells:
       small yellow circles on the map and they can be used to vary the enemy paths.
 - Press `V` to place a vent
     - Enemy spawn point
-- Press `E` to export your level, which will save location of barricades, waypoints, target and vents to a JSON file, the file name is by default `level_export.json` but this can be modified by changing the `EXPORT_PATH` variable.
-- Press `L` to load your level, which will by default load a level stored in `level.json`, but can be modified by changing the `LOAD_PATH` variable. 
+- Press `E` to export your level, which will save location of barricades, waypoints, target and vents to a JSON file,
+  the file name is by default `level_export.json` but this can be modified by changing the `EXPORT_PATH` variable.
+- Press `L` to load your level, which will by default load a level stored in `level.json`, but can be modified by
+  changing the `LOAD_PATH` variable. 
