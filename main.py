@@ -26,6 +26,7 @@ STARTING_VENT_SPAWN_INTERVAL = 8.0
 PATROL_RADIUS = CELL_SIZE // 2
 PATROL_SLEEP_TIME = 5.0
 DEFAULT_PATROL_SPEED = 40
+DEFAULT_PATROL_LIFESPAN = 3
 
 # Currency system
 STARTING_PLAYER_CURRENCY = 5
@@ -34,7 +35,7 @@ LINE_PRICE = 2
 # all others are priced one, but if you need to edit it you can. Make a variable up here if you do.
 
 # JSON Level File
-LOAD_PATH = "level2.json"  # <-- New: fixed file path for level data
+LOAD_PATH = "level.json"  # <-- New: fixed file path for level data
 EXPORT_PATH = "level_export.json"
 
 # Colors
@@ -203,6 +204,7 @@ class Patrol:
         self.direction = 1  # 1 = forward, -1 = backward
         self.pos = cell_center(self.path[0])
         self.sleep_timer = 0.0  # When > 0, the patrol is "asleep" and stops moving.
+        self.lifespan = DEFAULT_PATROL_LIFESPAN
 
     def update(self, dt):
         # If asleep, decrement the sleep timer and do not update movement.
@@ -409,6 +411,7 @@ while running:
                 elif event.key == pygame.K_m:
                     # Enter tetromino selection mode instead of marking a target.
                     game_mode = "tetromino_select"
+                    current_tetromino_index = random.randint(0, len(tetrominoes) - 1)
                 elif event.key == pygame.K_n:
                     if current_patrol_path:
                         # When finalizing a manually‐created patrol, fill in intermediate cells
@@ -536,6 +539,8 @@ while running:
 
         elif game_mode == "tetromino_select":
             # --- Tetromino Selection Screen ---
+            if event.key == pygame.KEYDOWN and event.key == pygame.K_m:
+                game_mode = "main"
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 if checkmark_rect.collidepoint(mouse_x, mouse_y):
@@ -601,7 +606,7 @@ while running:
     for enemy in enemies:
         enemy.update(dt)
 
-    # --- NEW: Check for collisions between patrols and enemies.
+    # --- Check for collisions between patrols and enemies.
     # Only register a collision if the patrol is not already asleep.
     for patrol in patrols:
         if patrol.sleep_timer > 0:
@@ -613,6 +618,9 @@ while running:
                 patrol.sleep_timer = PATROL_SLEEP_TIME  # Patrol stops moving for a few seconds.
                 coins.append(Coin(enemy.pos))  # <-- Drop a coin at the enemy's location.
                 enemies.remove(enemy)
+                patrol.lifespan -= 1
+                if patrol.lifespan <= 0:
+                    patrols.remove(patrol)
                 break
 
     # Update spawning rate
