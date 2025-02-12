@@ -459,7 +459,11 @@ while running:
                 valid = True
                 for (dx, dy) in purchased_tetromino["cells"]:
                     cell = (origin_col + dx, origin_row + dy)
-                    if not (0 <= cell[0] < GRID_COLS and 0 <= cell[1] < GRID_ROWS):
+                    for barricade in barricades:
+                        if cell == barricade:
+                            valid = False
+                            break
+                    if not (0 <= cell[0] < GRID_COLS and 0 <= cell[1] < GRID_ROWS) or not valid:
                         valid = False
                         break
                     tetromino_cells.append(cell)
