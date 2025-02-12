@@ -1,5 +1,11 @@
 # CS 4152 AI Prototype
 
+## Setup
+
+1. Clone the repository
+2. Run `pip install requirements.txt`
+3. Run `main.py` and everything should work
+
 ## Instructions
 
 ### Gameplay
