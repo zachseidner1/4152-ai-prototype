@@ -36,6 +36,7 @@ LIGHT_BLUE = (173, 216, 230)
 LIGHT_GREEN = (200, 255, 200)
 BROWN = (139, 69, 19)  # for barricades
 VENT_COLOR = (255, 165, 0)  # orange for vents
+YELLOW = (255, 255, 0)  # for waypoints
 
 # --------- Set Up Display -----------
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -49,6 +50,7 @@ patrols = []  # finalized Patrol objects
 enemies = []  # enemy objects
 barricades = set()  # grid cells (as (col, row)) that are barricaded
 vents = set()  # grid cells that have vents
+waypoints = []  # NEW: grid cells (as (col, row)) that have been marked as waypoints
 time_since_spawn_decreased = 0
 
 # --- New: Variables for vent enemy spawning ---
@@ -244,10 +246,24 @@ class Patrol:
 # --------- Enemy Class -----------
 class Enemy:
     def __init__(self, start_cell, speed=DEFAULT_ENEMY_SPEED):
+        global target_cell, waypoints
         self.start_cell = start_cell
-        self.target_cell = target_cell
         self.speed = speed
-        self.path = a_star(start_cell, target_cell)
+        # If a target is defined, sometimes (50% chance) choose a waypoint first.
+        if target_cell is None:
+            self.path = [start_cell]
+        else:
+            if waypoints and random.random() < 0.5:
+                chosen_wp = random.choice(waypoints)
+                path_to_wp = a_star(start_cell, chosen_wp)
+                path_from_wp = a_star(chosen_wp, target_cell)
+                if path_to_wp is not None and path_from_wp is not None:
+                    # Avoid duplicating the waypoint cell.
+                    self.path = path_to_wp[:-1] + path_from_wp
+                else:
+                    self.path = a_star(start_cell, target_cell)
+            else:
+                self.path = a_star(start_cell, target_cell)
         if self.path is None or len(self.path) == 0:
             self.path = [start_cell]
         self.index = 0
@@ -307,6 +323,14 @@ def draw_vents(surface):
         rect = pygame.Rect(cell[0] * CELL_SIZE, cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
         pygame.draw.rect(surface, VENT_COLOR, rect)
         pygame.draw.rect(surface, BLACK, rect, 2)
+
+
+# --- NEW: Draw waypoints on the grid ---
+def draw_waypoints(surface):
+    for cell in waypoints:
+        center = cell_center(cell)
+        # Draw a small yellow circle (radius 5)
+        pygame.draw.circle(surface, YELLOW, center, 5)
 
 
 def draw_tetromino(tetromino, top_left, cell_size, surface):
@@ -392,6 +416,14 @@ while running:
                     cell = (col, row)
                     if cell not in vents:
                         vents.add(cell)
+                elif event.key == pygame.K_w:
+                    # --- NEW: Place a waypoint at the cell under the mouse ---
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    col = mouse_x // CELL_SIZE
+                    row = mouse_y // CELL_SIZE
+                    cell = (col, row)
+                    if cell not in waypoints:
+                        waypoints.append(cell)
                 elif event.key == pygame.K_RETURN:
                     # --- NEW: Pressing Enter starts periodic enemy spawns from vents ---
                     spawn_from_vents = True
@@ -519,6 +551,7 @@ while running:
         draw_grid(screen)
         draw_barricades(screen)
         draw_vents(screen)  # --- Draw vents on the grid
+        draw_waypoints(screen)  # --- Draw waypoints on the grid
         if target_cell:
             target_rect = pygame.Rect(target_cell[0] * CELL_SIZE, target_cell[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
             pygame.draw.rect(screen, LIGHT_BLUE, target_rect)
