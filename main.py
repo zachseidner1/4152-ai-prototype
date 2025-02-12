@@ -467,6 +467,9 @@ while running:
                     # Instead of directly using the tetromino cells (which might be in an order that makes diagonal moves),
                     # compute a proper patrol ordering that stays within the tetromino.
                     ordered_path = compute_patrol_path(tetromino_cells)
+                    # --- NEW: Remove any existing patrol that overlaps with the new tetromino cells ---
+                    new_cells_set = set(tetromino_cells)
+                    patrols[:] = [p for p in patrols if set(p.path).isdisjoint(new_cells_set)]
                     patrols.append(Patrol(ordered_path))
                     purchased_tetromino = None
                     game_mode = "main"
