@@ -22,3 +22,5 @@ While hovering over grid cells:
       small yellow circles on the map and they can be used to vary the enemy paths.
 - Press `V` to place a vent
     - Enemy spawn point
+- Press `E` to export your level, which will save location of barricades, waypoints, target and vents to a JSON file, the file name is by default `level_export.json` but this can be modified by changing the `EXPORT_PATH` variable.
+- Press `L` to load your level, which will by default load a level stored in `level.json`, but can be modified by changing the `LOAD_PATH` variable. 
