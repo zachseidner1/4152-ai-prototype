@@ -29,8 +29,8 @@ STARTING_VENT_SPAWN_INTERVAL = 5.0
 # Currency system
 STARTING_PLAYER_CURRENCY = 5
 T_PRICE = 2
-L_PRICE = 1
 LINE_PRICE = 2
+# all others are priced one, but if you need to edit it you can. Make a variable up here if you do.
 
 # JSON Level File
 LOAD_PATH = "level2.json"  # <-- New: fixed file path for level data
@@ -91,7 +91,7 @@ tetrominoes = [
     {"name": "S", "cells": [(1, 0), (2, 0), (0, 1), (1, 1)], "color": (0, 255, 0), "price": 1},
     {"name": "Z", "cells": [(0, 0), (1, 0), (1, 1), (2, 1)], "color": (255, 0, 0), "price": 1},
     {"name": "J", "cells": [(0, 0), (0, 1), (1, 1), (2, 1)], "color": (0, 0, 255), "price": 1},
-    {"name": "L", "cells": [(2, 0), (0, 1), (1, 1), (2, 1)], "color": (255, 165, 0), "price": L_PRICE}
+    {"name": "L", "cells": [(2, 0), (0, 1), (1, 1), (2, 1)], "color": (255, 165, 0), "price": 1}
 ]
 current_tetromino_index = 0  # which tetromino is currently shown
 purchased_tetromino = None  # once “purchased” this holds the tetromino to be placed
