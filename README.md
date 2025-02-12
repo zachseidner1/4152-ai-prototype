@@ -4,13 +4,19 @@
 
 ### Gameplay
 
-Press `M` to enter the "Tetromino Selection" mode. This allows you to select different Tetrominos and place them on the
+Press `M` to toggle between "Tetromino Selection" mode and "main" mode. This allows you to select different Tetrominos
+and place them on the
 map. While placing Tetrominos, you can press `R` to rotate them 90 degrees. Once you are done preparation, press `Enter`
 to start the level. Throughout the level you can continue placing
 Tetrominos and defend. The enemies will spawn exponentially faster throughout the level.
 
 By clicking on the grid, you can also draw patrol paths. Once you have a path selected you want to place, press `N` to
 finalize it.
+
+Press `/` to clear the gameboard (not `R` because I didn't want this to happen accidentally if you wanted to rotate
+a Tetris piece)
+
+Press `K` to clear a path you are currently in-progress of drawing.
 
 ### Level creation
 
