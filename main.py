@@ -27,7 +27,8 @@ DEFAULT_PATROL_SPEED = 40
 vent_spawn_interval = 5.0  # seconds between spawns from vents
 
 # JSON Level File
-LEVEL_FILE = "level.json"  # <-- New: fixed file path for level data
+LOAD_PATH = "level.json"  # <-- New: fixed file path for level data
+EXPORT_PATH = "level_export.json"
 
 # Colors
 WHITE = (255, 255, 255)
@@ -432,20 +433,20 @@ while running:
                         "target": [target_cell[0], target_cell[1]] if target_cell is not None else None
                     }
                     try:
-                        with open(LEVEL_FILE, 'w') as f:
+                        with open(EXPORT_PATH, 'w') as f:
                             json.dump(level_data, f, indent=4)
-                        print("Exported level to", LEVEL_FILE)
+                        print("Exported level to", EXPORT_PATH)
                     except Exception as e:
                         print("Error exporting level:", e)
                 elif event.key == pygame.K_l:
                     # --- NEW: Load level data from JSON ---
                     try:
-                        with open(LEVEL_FILE, 'r') as f:
+                        with open(LOAD_PATH, 'r') as f:
                             level_data = json.load(f)
                         barricades = {tuple(cell) for cell in level_data.get("barricades", [])}
                         vents = {tuple(cell) for cell in level_data.get("vents", [])}
                         target_cell = tuple(level_data["target"]) if level_data.get("target") is not None else None
-                        print("Loaded level from", LEVEL_FILE)
+                        print("Loaded level from", LOAD_PATH)
                     except Exception as e:
                         print("Failed to load level:", e)
             elif event.type == pygame.MOUSEBUTTONDOWN:
