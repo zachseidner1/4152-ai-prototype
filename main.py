@@ -491,6 +491,14 @@ while running:
                         print("Loaded level from", LOAD_PATH)
                     except Exception as e:
                         print("Failed to load level:", e)
+                elif event.key == pygame.K_SLASH:
+                    patrols = []
+                    enemies = []
+                    coins = []
+                    current_patrol_path = []
+                elif event.key == pygame.K_k:
+                    current_patrol_path = []
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     # --- NEW: Check if clicking on a coin first ---
