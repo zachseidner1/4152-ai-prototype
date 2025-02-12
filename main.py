@@ -47,7 +47,7 @@ LIGHT_BLUE = (173, 216, 230)
 LIGHT_GREEN = (200, 255, 200)
 BROWN = (139, 69, 19)  # for barricades
 VENT_COLOR = (255, 165, 0)  # orange for vents
-YELLOW = (255, 255, 0)  # for waypoints
+YELLOW = (255, 255, 0)  # for waypoints and coins
 
 # --------- Set Up Display -----------
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -59,6 +59,7 @@ font = pygame.font.SysFont(None, 36)
 current_patrol_path = []  # manually created patrol cells (if any)
 patrols = []  # finalized Patrol objects
 enemies = []  # enemy objects
+coins = []  # <-- NEW: list of coins dropped by dead enemies
 barricades = set()  # grid cells (as (col, row)) that are barricaded
 vents = set()  # grid cells that have vents
 waypoints = []  # grid cells (as (col, row)) that have been marked as waypoints
@@ -320,6 +321,28 @@ class Enemy:
         pygame.draw.circle(surface, BLUE, (int(self.pos[0]), int(self.pos[1])), ENEMY_RADIUS)
 
 
+# --------- NEW: Coin Class -----------
+class Coin:
+    def __init__(self, pos):
+        # pos is the pixel center where the coin appears.
+        self.pos = pos
+        self.width = 25  # coin will be narrower than it is tall
+        self.height = 40
+
+    def contains_point(self, point):
+        rect = pygame.Rect(self.pos[0] - self.width // 2,
+                           self.pos[1] - self.height // 2,
+                           self.width, self.height)
+        return rect.collidepoint(point)
+
+    def draw(self, surface):
+        rect = pygame.Rect(self.pos[0] - self.width // 2,
+                           self.pos[1] - self.height // 2,
+                           self.width, self.height)
+        pygame.draw.ellipse(surface, YELLOW, rect)
+        pygame.draw.ellipse(surface, BLACK, rect, 2)
+
+
 # --------- Drawing Helper Functions -----------
 def draw_grid(surface):
     for x in range(0, WIDTH, CELL_SIZE):
@@ -465,6 +488,17 @@ while running:
                         print("Failed to load level:", e)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
+                    # --- NEW: Check if clicking on a coin first ---
+                    coin_clicked = False
+                    for coin in coins:
+                        if coin.contains_point(event.pos):
+                            player_balance += 1
+                            coins.remove(coin)
+                            coin_clicked = True
+                            break
+                    if coin_clicked:
+                        continue  # Skip further processing of this click
+
                     mouse_x, mouse_y = event.pos
                     col = mouse_x // CELL_SIZE
                     row = mouse_y // CELL_SIZE
@@ -576,6 +610,7 @@ while running:
             dy = patrol.pos[1] - enemy.pos[1]
             if math.hypot(dx, dy) < PATROL_RADIUS + ENEMY_RADIUS:
                 patrol.sleep_timer = PATROL_SLEEP_TIME  # Patrol stops moving for a few seconds.
+                coins.append(Coin(enemy.pos))  # <-- Drop a coin at the enemy's location.
                 enemies.remove(enemy)
                 break
 
@@ -612,6 +647,9 @@ while running:
             patrol.draw(screen)
         for enemy in enemies:
             enemy.draw(screen)
+        # --- NEW: Draw coins on the screen ---
+        for coin in coins:
+            coin.draw(screen)
         # If in tetromino placement mode, show the purchased tetromino following the mouse,
         # snapped to the grid.
         if game_mode == "tetromino_place" and purchased_tetromino is not None:
