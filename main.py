@@ -1,6 +1,7 @@
 import heapq
 import math
 import sys
+from collections import deque
 
 import pygame
 
@@ -28,7 +29,7 @@ BROWN = (139, 69, 19)  # for barricades
 
 # --------- Set Up Display -----------
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Multiple Patrol Paths, Enemies, Barricades, and Tetromino Patrols")
+pygame.display.set_caption("90° Patrol Paths with Tetromino Patrols")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont(None, 36)
 
@@ -107,10 +108,44 @@ def a_star(start, goal):
     return None
 
 
+# --------- NEW: Compute an ordered patrol path that stays inside a shape using BFS ---------
+def compute_patrol_path(cells):
+    """
+    Given a set (or list) of grid cells (each a tuple (col, row)) that form a contiguous shape,
+    return an ordering (a list of cells) that covers the shape by moving only horizontally
+    or vertically. This BFS finds a minimal route (allowing repeated visits) that covers all cells.
+    """
+    cells_set = frozenset(cells)
+    queue = deque()
+    # Start from each cell as a potential starting point.
+    for start in cells:
+        queue.append((start, frozenset({start}), [start]))
+    visited_states = set()
+    while queue:
+        current, visited, path = queue.popleft()
+        if visited == cells_set:
+            return path
+        state = (current, visited)
+        if state in visited_states:
+            continue
+        visited_states.add(state)
+        # Try all 4 cardinal moves.
+        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            nxt = (current[0] + dx, current[1] + dy)
+            if nxt in cells_set:
+                new_visited = visited | {nxt}
+                new_path = path + [nxt]
+                queue.append((nxt, new_visited, new_path))
+    # Fallback: just return the cells in arbitrary order.
+    return list(cells)
+
+
 # --------- Patrol Class -----------
 class Patrol:
     def __init__(self, path, speed=100):
-        self.path = path[:]  # list of grid cells (col, row)
+        # The path is assumed to be an ordered list of grid cells in which consecutive cells
+        # are connected by a horizontal or vertical move.
+        self.path = path[:]
         self.speed = speed  # pixels per second
         self.index = 0  # current index in the path list
         self.progress = 0.0  # progress along the segment (0–1)
@@ -247,7 +282,6 @@ while running:
             # --- Main Game Events ---
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_t:
-                    print("HELP")
                     # Mark the target cell (blue) under the mouse cursor.
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     col = mouse_x // CELL_SIZE
@@ -261,12 +295,32 @@ while running:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     col = mouse_x // CELL_SIZE
                     row = mouse_y // CELL_SIZE
-                    # For this example we set a fixed target (e.g. bottom-right corner).
                     enemy = Enemy((col, row))
                     enemies.append(enemy)
                 elif event.key == pygame.K_n:
                     if current_patrol_path:
-                        patrols.append(Patrol(current_patrol_path))
+                        # When finalizing a manually‐created patrol, fill in intermediate cells
+                        # so the path moves only horizontally and vertically.
+                        fixed_path = []
+                        fixed_path.append(current_patrol_path[0])
+                        for cell in current_patrol_path[1:]:
+                            last = fixed_path[-1]
+                            dx = cell[0] - last[0]
+                            dy = cell[1] - last[1]
+                            if abs(dx) + abs(dy) > 1:
+                                # Fill in horizontal moves then vertical moves.
+                                step_x = 1 if dx > 0 else -1 if dx < 0 else 0
+                                cur = last
+                                while cur[0] != cell[0]:
+                                    cur = (cur[0] + step_x, cur[1])
+                                    fixed_path.append(cur)
+                                step_y = 1 if dy > 0 else -1 if dy < 0 else 0
+                                while cur[1] != cell[1]:
+                                    cur = (cur[0], cur[1] + step_y)
+                                    fixed_path.append(cur)
+                            else:
+                                fixed_path.append(cell)
+                        patrols.append(Patrol(fixed_path))
                         current_patrol_path = []
                 elif event.key == pygame.K_b:
                     # Place a barricade at the cell under the mouse.
@@ -290,8 +344,27 @@ while running:
                             patrol.index -= patrol.direction
                             patrol.progress = 1 - patrol.progress
                             in_patrol_path = True
-                    if cell not in current_patrol_path and not in_patrol_path:
-                        current_patrol_path.append(cell)
+                    if not in_patrol_path:
+                        if current_patrol_path:
+                            last = current_patrol_path[-1]
+                            dx = cell[0] - last[0]
+                            dy = cell[1] - last[1]
+                            if abs(dx) + abs(dy) > 1:
+                                # Automatically fill in the intermediate cells so the path moves
+                                # only horizontally and vertically.
+                                step_x = 1 if dx > 0 else -1 if dx < 0 else 0
+                                cur = last
+                                while cur[0] != cell[0]:
+                                    cur = (cur[0] + step_x, cur[1])
+                                    current_patrol_path.append(cur)
+                                step_y = 1 if dy > 0 else -1 if dy < 0 else 0
+                                while cur[1] != cell[1]:
+                                    cur = (cur[0], cur[1] + step_y)
+                                    current_patrol_path.append(cur)
+                            else:
+                                current_patrol_path.append(cell)
+                        else:
+                            current_patrol_path.append(cell)
 
         elif game_mode == "tetromino_select":
             # --- Tetromino Selection Screen ---
@@ -319,8 +392,10 @@ while running:
                         break
                     tetromino_cells.append(cell)
                 if valid:
-                    # Place the purchased tetromino as a new Patrol.
-                    patrols.append(Patrol(tetromino_cells))
+                    # Instead of directly using the tetromino cells (which might be in an order that makes diagonal moves),
+                    # compute a proper patrol ordering that stays within the tetromino.
+                    ordered_path = compute_patrol_path(tetromino_cells)
+                    patrols.append(Patrol(ordered_path))
                     purchased_tetromino = None
                     game_mode = "main"
 
@@ -370,26 +445,21 @@ while running:
     elif game_mode == "tetromino_select":
         # Draw the tetromino selection screen.
         screen.fill(WHITE)
-        # Draw the current tetromino preview in the center (with a larger cell size).
         preview_cell_size = 50
         tetromino = tetrominoes[current_tetromino_index]
-        # Compute a bounding box for the tetromino.
         xs = [cell[0] for cell in tetromino["cells"]]
         ys = [cell[1] for cell in tetromino["cells"]]
         width_cells = max(xs) - min(xs) + 1
         height_cells = max(ys) - min(ys) + 1
         preview_width = width_cells * preview_cell_size
         preview_height = height_cells * preview_cell_size
-        # Offset so the tetromino is centered.
         preview_top_left = ((WIDTH - preview_width) // 2 - min(xs) * preview_cell_size,
                             (HEIGHT - preview_height) // 2 - min(ys) * preview_cell_size)
         draw_tetromino(tetromino, preview_top_left, preview_cell_size, screen)
-        # Draw the checkmark (OK) button.
         pygame.draw.rect(screen, GREEN, checkmark_rect)
         check_text = font.render("OK", True, BLACK)
         text_rect = check_text.get_rect(center=checkmark_rect.center)
         screen.blit(check_text, text_rect)
-        # Draw the X (cycle) button.
         pygame.draw.rect(screen, RED, x_button_rect)
         x_text = font.render("X", True, BLACK)
         text_rect = x_text.get_rect(center=x_button_rect.center)
